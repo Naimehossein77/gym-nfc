@@ -1,6 +1,8 @@
+# app/api/tokens.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_staff_user
+
+from app.core.dependencies import require_staff
 from app.models import NFCTokenRequest, NFCToken, APIResponse
 from app.services.token_service import token_service
 from app.services.member_service import member_service
@@ -13,60 +15,33 @@ router = APIRouter(prefix="/api/tokens", tags=["tokens"])
 async def generate_token(
     request: NFCTokenRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+    current_user = Depends(require_staff)
 ):
-    """
-    Generate a new NFC token for a member
-    
-    Requires staff or admin privileges.
-    
-    - **member_id**: ID of the member to generate token for
-    - **expires_in_days**: Optional expiration in days (if not provided, token doesn't expire)
-    """
-    # Verify member exists and is active
+    # member check
     if not member_service.is_member_active(db, request.member_id):
         member = member_service.get_member_by_id(db, request.member_id)
         if not member:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Member not found"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Member {request.member_id} is not active (status: {member.status})"
-            )
-    
-    try:
-        token = token_service.generate_token(db, request)
-        return token
-    except Exception as e:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating token: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Member {request.member_id} is not active (status: {member.status})"
         )
+    try:
+        return token_service.generate_token(db, request)  # contains optional encrypted_payload
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating token: {e}")
 
 
 @router.get("/{token}/validate")
 async def validate_token(
     token: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+    current_user = Depends(require_staff)
 ):
-    """
-    Validate an NFC token
-    
-    Requires staff or admin privileges.
-    """
     nfc_token = token_service.get_token(db, token)
     if not nfc_token:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Token not found"
-        )
-    
+        raise HTTPException(status_code=404, detail="Token not found")
     is_valid = token_service.is_token_valid(db, token)
-    
     return APIResponse(
         success=True,
         message=f"Token is {'valid' if is_valid else 'invalid/expired'}",
@@ -84,23 +59,12 @@ async def validate_token(
 async def get_member_tokens(
     member_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+    current_user = Depends(require_staff)
 ):
-    """
-    Get all tokens for a specific member
-    
-    Requires staff or admin privileges.
-    """
-    # Verify member exists
     member = member_service.get_member_by_id(db, member_id)
     if not member:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Member not found"
-        )
-    
+        raise HTTPException(status_code=404, detail="Member not found")
     tokens = token_service.get_tokens_for_member(db, member_id)
-    
     return APIResponse(
         success=True,
         message=f"Found {len(tokens)} tokens for member {member_id}",
@@ -108,12 +72,11 @@ async def get_member_tokens(
             "member_id": member_id,
             "tokens": [
                 {
-                    "token": token.token,
-                    "created_at": token.created_at.isoformat(),
-                    "expires_at": token.expires_at.isoformat() if token.expires_at else None,
-                    "is_valid": token_service.is_token_valid(db, token.token)
-                }
-                for token in tokens
+                    "token": t.token,
+                    "created_at": t.created_at.isoformat(),
+                    "expires_at": t.expires_at.isoformat() if t.expires_at else None,
+                    "is_valid": token_service.is_token_valid(db, t.token)
+                } for t in tokens
             ]
         }
     )
@@ -123,21 +86,10 @@ async def get_member_tokens(
 async def revoke_token(
     token: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+    current_user = Depends(require_staff)
 ):
-    """
-    Revoke an NFC token
-    
-    Requires staff or admin privileges.
-    """
-    success = token_service.revoke_token(db, token)
-    
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Token not found"
-        )
-    
+    if not token_service.revoke_token(db, token):
+        raise HTTPException(status_code=404, detail="Token not found")
     return APIResponse(
         success=True,
         message=f"Token {token} has been revoked",
@@ -148,22 +100,11 @@ async def revoke_token(
 @router.post("/cleanup")
 async def cleanup_expired_tokens(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+    current_user = Depends(require_staff)
 ):
-    """
-    Clean up expired tokens
-    
-    Requires staff or admin privileges.
-    """
-    try:
-        count = token_service.cleanup_expired_tokens(db)
-        return APIResponse(
-            success=True,
-            message=f"Cleaned up {count} expired tokens",
-            data={"expired_tokens_removed": count}
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error cleaning up tokens: {str(e)}"
-        )
+    count = token_service.cleanup_expired_tokens(db)
+    return APIResponse(
+        success=True,
+        message=f"Cleaned up {count} expired tokens",
+        data={"expired_tokens_removed": count}
+    )

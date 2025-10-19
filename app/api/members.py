@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_staff_user, get_admin_user
+from app.core.dependencies import require_staff, require_admin
 from app.models import (
     Member, MemberCreate, MemberUpdate, MemberSearchRequest, 
     MemberSearchResponse, APIResponse
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/members", tags=["members"])
 async def create_member(
     member_data: MemberCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+current_user = Depends(require_staff)
 ):
     """
     Create a new gym member
@@ -48,7 +48,7 @@ async def get_all_members(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+current_user = Depends(require_staff)
 ):
     """
     Get all members with pagination
@@ -72,7 +72,7 @@ async def get_all_members(
 async def search_members(
     request: MemberSearchRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+   current_user = Depends(require_staff)
 ):
     """
     Search for gym members by name, email, phone, or ID
@@ -97,7 +97,7 @@ async def search_members(
 async def get_member(
     member_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+  current_user = Depends(require_staff)
 ):
     """
     Get a specific member by ID
@@ -119,7 +119,7 @@ async def update_member(
     member_id: int,
     member_data: MemberUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+   current_user = Depends(require_staff)
 ):
     """
     Update a member's information
@@ -156,7 +156,7 @@ async def update_member(
 async def delete_member(
     member_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_admin_user)  # Only admins can delete
+current_user = Depends(require_admin)
 ):
     """
     Delete a member (soft delete)
@@ -189,7 +189,7 @@ async def delete_member(
 async def get_member_status(
     member_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_staff_user)
+   current_user = Depends(require_staff)
 ):
     """
     Check if a member is active
@@ -214,3 +214,40 @@ async def get_member_status(
             "status": member.status
         }
     )
+# app/api/members.py (নতুন রুট)
+from pydantic import BaseModel
+from app.core.dependencies import require_staff
+from app.database import User
+from app.core.security import get_password_hash
+
+class MemberCredentialDTO(BaseModel):
+    username: str
+    password: str
+
+@router.post("/{member_id}/credentials", dependencies=[Depends(require_staff)])
+def set_member_credentials(member_id: int, dto: MemberCredentialDTO, db: Session = Depends(get_db)):
+    member = member_service.get_member_by_id(db, member_id)
+    if not member or member.status != "active":
+        raise HTTPException(status_code=404, detail="Member not found or not active")
+    # unique username check
+    exist = db.query(User).filter(User.username==dto.username).first()
+    if exist:
+        raise HTTPException(status_code=400, detail="Username already taken")
+    # create or update user for member
+    u = db.query(User).filter(User.member_id==member_id).first()
+    if not u:
+        u = User(
+            username=dto.username,
+            email=member.email,
+            role="member",
+            member_id=member_id,
+            is_active=True,
+            password_hash=get_password_hash(dto.password)
+        )
+        db.add(u)
+    else:
+        u.username = dto.username
+        u.password_hash = get_password_hash(dto.password)
+        u.is_active = True
+    db.commit()
+    return {"success": True, "message": "Member credentials set"}

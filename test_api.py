@@ -33,8 +33,8 @@ def test_api():
     # Test 2: Login
     print("\n2. Testing authentication...")
     try:
-        response = requests.post(
-            f"{base_url}/api/auth/login",
+        
+        response = requests.post(f"{base_url}/api/auth/admin/login",
             data={"username": "admin", "password": "admin123"}
         )
         if response.status_code == 200:
