@@ -112,7 +112,7 @@ if __name__ == "__main__":
     print(f"🚀 Server running at http://{local_ip}:9000")
     print(f"📚 API documentation available at http://{local_ip}:9000/docs")
     uvicorn.run(
-        "app.main:app",  # ensure correct module path
+        "main:app",  # ensure correct module path
         host="0.0.0.0",
         port=9000,
         reload=settings.debug,
