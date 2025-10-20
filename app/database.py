@@ -4,6 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import os
+from passlib.context import CryptContext
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./gym_nfc.db")
 
@@ -115,6 +116,64 @@ def init_sample_data():
         print("✅ Sample data initialized successfully")
     except Exception as e:
         print(f"❌ Error initializing sample data: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def ensure_admin_user():
+    """Ensure at least one admin or staff user exists. If none, create default admin and staff users.
+
+    This function is safe to call after the database tables are created. It reads the following
+    environment variables to configure credentials but falls back to sensible defaults:
+      - ADMIN_USERNAME (default: 'admin')
+      - ADMIN_PASSWORD (default: 'admin123')
+      - STAFF_USERNAME (default: 'frontdesk')
+      - STAFF_PASSWORD (default: 'frontdesk123')
+
+    The function avoids raising on error and prints helpful messages. It is resilient if the
+    database was reset or missing.
+    """
+    db = SessionLocal()
+    try:
+        # If any admin/staff exists, nothing to do
+        existing = db.query(User).filter(User.role.in_(["admin", "staff"])).first()
+        if existing:
+            print("🔐 Admin/staff user already exists, skipping creation")
+            return
+
+        admin_username = os.getenv("ADMIN_USERNAME", "admin")
+        admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+        staff_username = os.getenv("STAFF_USERNAME", "frontdesk")
+        staff_password = os.getenv("STAFF_PASSWORD", "frontdesk123")
+
+        # Create admin user
+        admin = User(
+            username=admin_username,
+            email=None,
+            password_hash=pwd_context.hash(admin_password),
+            role="admin",
+            is_active=True,
+        )
+        db.add(admin)
+
+        # Create staff user
+        staff = User(
+            username=staff_username,
+            email=None,
+            password_hash=pwd_context.hash(staff_password),
+            role="staff",
+            is_active=True,
+        )
+        db.add(staff)
+
+        db.commit()
+        print(f"✅ Created default admin ('{admin_username}') and staff ('{staff_username}') users")
+    except Exception as e:
+        print(f"❌ Error ensuring admin user: {e}")
         db.rollback()
     finally:
         db.close()

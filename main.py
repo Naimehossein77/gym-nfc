@@ -20,7 +20,7 @@ from app.api import auth, members, tokens, nfc
 from app.api import members_admin_list_tokens
 
 
-from app.database import create_tables, init_sample_data
+from app.database import create_tables, init_sample_data, ensure_admin_user
 
 # Configure logging
 logging.basicConfig(
@@ -32,6 +32,7 @@ logging.basicConfig(
 print("🗄️ Initializing database...")
 create_tables()
 init_sample_data()
+ensure_admin_user()
 print("✅ Database initialized successfully")
 
 # Create FastAPI application
