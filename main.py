@@ -1,9 +1,13 @@
-from fastapi import FastAPI, HTTPException
+# app/main.py
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import os
 from dotenv import load_dotenv
 import socket
 import uvicorn
+import logging
+from datetime import datetime, timezone
 
 # Load environment variables
 try:
@@ -13,8 +17,10 @@ except ImportError:
 
 from app.core.config import settings
 from app.api import auth, members, tokens, nfc
+from app.api import members_admin_list_tokens
+
+
 from app.database import create_tables, init_sample_data
-import logging
 
 # Configure logging
 logging.basicConfig(
@@ -22,7 +28,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-# Initialize database
+# Initialize database (you can move these into startup event if you prefer)
 print("🗄️ Initializing database...")
 create_tables()
 init_sample_data()
@@ -58,25 +64,24 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Add CORS middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this properly for production
+    allow_origins=["*"],  # TODO: restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routers
+# Routers
 app.include_router(auth.router)
 app.include_router(members.router)
 app.include_router(tokens.router)
 app.include_router(nfc.router)
-
+app.include_router(members_admin_list_tokens.router)
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information"""
     return {
         "message": "Gym NFC Management System API",
         "version": settings.app_version,
@@ -84,39 +89,32 @@ async def root():
         "status": "operational"
     }
 
-
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "version": settings.app_version,
-        "timestamp": "2024-01-01T00:00:00Z"  # This would be dynamic in production
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
-
-# Global exception handler
+# Global exception handler -> JSON response
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """Global exception handler for unhandled errors"""
-    logging.error(f"Unhandled exception: {exc}")
-    return HTTPException(
+async def global_exception_handler(request: Request, exc: Exception):
+    logging.exception("Unhandled exception", exc_info=exc)
+    return JSONResponse(
         status_code=500,
-        detail="Internal server error occurred"
+        content={"detail": "Internal server error occurred"}
     )
 
-
 if __name__ == "__main__":
-
-
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
     print(f"🚀 Server running at http://{local_ip}:9000")
     print(f"📚 API documentation available at http://{local_ip}:9000/docs")
     uvicorn.run(
-        "main:app",
+        "app.main:app",  # ensure correct module path
         host="0.0.0.0",
         port=9000,
         reload=settings.debug,
-        log_level="info"
+        log_level="info",
     )
