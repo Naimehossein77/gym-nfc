@@ -1,32 +1,27 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import require_staff, require_admin
+from pydantic import BaseModel
+
+from app.core.dependencies import require_staff, require_admin, require_self_or_staff
 from app.models import (
-    Member, MemberCreate, MemberUpdate, MemberSearchRequest, 
+    Member, MemberCreate, MemberUpdate, MemberSearchRequest,
     MemberSearchResponse, APIResponse
 )
 from app.services.member_service import member_service
-from app.database import get_db
+from app.database import get_db, User
+from app.core.security import get_password_hash
 
 router = APIRouter(prefix="/api/members", tags=["members"])
 
 
-@router.post("/", response_model=Member)
+@router.post("/", response_model=Member, status_code=status.HTTP_201_CREATED)
 async def create_member(
     member_data: MemberCreate,
     db: Session = Depends(get_db),
-current_user = Depends(require_staff)
+    current_user=Depends(require_staff),
 ):
     """
-    Create a new gym member
-    
-    Requires staff or admin privileges.
-    
-    - **name**: Full name of the member
-    - **email**: Email address (must be unique)
-    - **phone**: Phone number (optional)
-    - **membership_type**: Type of membership (Basic, Premium, Student, etc.)
-    - **status**: Member status (active, suspended, etc.)
+    Create a new gym member (staff/admin only)
     """
     try:
         member = member_service.create_member(db, member_data)
@@ -34,12 +29,12 @@ current_user = Depends(require_staff)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating member: {str(e)}"
+            detail=f"Error creating member: {str(e)}",
         )
 
 
@@ -48,15 +43,10 @@ async def get_all_members(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-current_user = Depends(require_staff)
+    current_user=Depends(require_staff),
 ):
     """
-    Get all members with pagination
-    
-    Requires staff or admin privileges.
-    
-    - **skip**: Number of records to skip (default: 0)
-    - **limit**: Maximum number of records to return (default: 100)
+    Get all members with pagination (staff/admin only)
     """
     try:
         members = member_service.get_all_members(db, skip=skip, limit=limit)
@@ -64,7 +54,7 @@ current_user = Depends(require_staff)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving members: {str(e)}"
+            detail=f"Error retrieving members: {str(e)}",
         )
 
 
@@ -72,16 +62,10 @@ current_user = Depends(require_staff)
 async def search_members(
     request: MemberSearchRequest,
     db: Session = Depends(get_db),
-   current_user = Depends(require_staff)
+    current_user=Depends(require_staff),
 ):
     """
-    Search for gym members by name, email, phone, or ID
-    
-    Requires staff or admin privileges.
-    
-    - **query**: Search query (name, email, phone, or member ID)
-    - **limit**: Maximum number of results to return (default: 10)
-    - **offset**: Number of results to skip for pagination (default: 0)
+    Search for members (staff/admin only)
     """
     try:
         result = member_service.search_members(db, request)
@@ -89,7 +73,7 @@ async def search_members(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error searching members: {str(e)}"
+            detail=f"Error searching members: {str(e)}",
         )
 
 
@@ -97,20 +81,14 @@ async def search_members(
 async def get_member(
     member_id: int,
     db: Session = Depends(get_db),
-  current_user = Depends(require_staff)
+    current_user=Depends(require_self_or_staff),  # member can view self; staff/admin can view any
 ):
-    """
-    Get a specific member by ID
-    
-    Requires staff or admin privileges.
-    """
     member = member_service.get_member_by_id(db, member_id)
     if not member:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Member not found"
+            detail="Member not found",
         )
-    
     return member
 
 
@@ -119,122 +97,110 @@ async def update_member(
     member_id: int,
     member_data: MemberUpdate,
     db: Session = Depends(get_db),
-   current_user = Depends(require_staff)
+    current_user=Depends(require_staff),
 ):
     """
-    Update a member's information
-    
-    Requires staff or admin privileges.
-    
-    - **name**: Full name of the member (optional)
-    - **email**: Email address (optional, must be unique)
-    - **phone**: Phone number (optional)
-    - **membership_type**: Type of membership (optional)
-    - **status**: Member status (optional)
+    Update a member (staff/admin only)
     """
     try:
         member = member_service.update_member(db, member_id, member_data)
         if not member:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Member not found"
+                detail="Member not found",
             )
         return member
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=str(e),
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating member: {str(e)}"
+            detail=f"Error updating member: {str(e)}",
         )
 
 
-@router.delete("/{member_id}")
+@router.delete("/{member_id}", response_model=APIResponse)
 async def delete_member(
     member_id: int,
     db: Session = Depends(get_db),
-current_user = Depends(require_admin)
+    current_user=Depends(require_admin),
 ):
     """
-    Delete a member (soft delete)
-    
-    Requires admin privileges.
-    
-    This performs a soft delete by setting the member status to 'deleted'.
+    Soft delete a member (admin only)
     """
     try:
         success = member_service.delete_member(db, member_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Member not found"
+                detail="Member not found",
             )
-        
+
         return APIResponse(
             success=True,
             message=f"Member {member_id} has been deleted",
-            data={"member_id": member_id, "deleted": True}
+            data={"member_id": member_id, "deleted": True},
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting member: {str(e)}"
+            detail=f"Error deleting member: {str(e)}",
         )
 
 
-@router.get("/{member_id}/status")
+@router.get("/{member_id}/status", response_model=APIResponse)
 async def get_member_status(
     member_id: int,
     db: Session = Depends(get_db),
-   current_user = Depends(require_staff)
+    current_user=Depends(require_self_or_staff),  # member can view self; staff/admin can view any
 ):
-    """
-    Check if a member is active
-    
-    Requires staff or admin privileges.
-    """
     member = member_service.get_member_by_id(db, member_id)
     if not member:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Member not found"
+            detail="Member not found",
         )
-    
+
     is_active = member_service.is_member_active(db, member_id)
-    
     return APIResponse(
         success=True,
         message=f"Member {member_id} is {'active' if is_active else 'inactive'}",
         data={
             "member_id": member_id,
             "is_active": is_active,
-            "status": member.status
-        }
+            "status": member.status,
+        },
     )
-# app/api/members.py (নতুন রুট)
-from pydantic import BaseModel
-from app.core.dependencies import require_staff
-from app.database import User
-from app.core.security import get_password_hash
+
 
 class MemberCredentialDTO(BaseModel):
     username: str
     password: str
 
+
 @router.post("/{member_id}/credentials", dependencies=[Depends(require_staff)])
-def set_member_credentials(member_id: int, dto: MemberCredentialDTO, db: Session = Depends(get_db)):
+def set_member_credentials(
+    member_id: int,
+    dto: MemberCredentialDTO,
+    db: Session = Depends(get_db),
+):
+    """
+    Set or update login credentials for a member (staff/admin only)
+    """
     member = member_service.get_member_by_id(db, member_id)
     if not member or member.status != "active":
         raise HTTPException(status_code=404, detail="Member not found or not active")
+
     # unique username check
-    exist = db.query(User).filter(User.username==dto.username).first()
+    exist = db.query(User).filter(User.username == dto.username).first()
     if exist:
         raise HTTPException(status_code=400, detail="Username already taken")
+
     # create or update user for member
-    u = db.query(User).filter(User.member_id==member_id).first()
+    u = db.query(User).filter(User.member_id == member_id).first()
     if not u:
         u = User(
             username=dto.username,
@@ -242,12 +208,13 @@ def set_member_credentials(member_id: int, dto: MemberCredentialDTO, db: Session
             role="member",
             member_id=member_id,
             is_active=True,
-            password_hash=get_password_hash(dto.password)
+            password_hash=get_password_hash(dto.password),
         )
         db.add(u)
     else:
         u.username = dto.username
         u.password_hash = get_password_hash(dto.password)
         u.is_active = True
+
     db.commit()
     return {"success": True, "message": "Member credentials set"}
