@@ -50,7 +50,11 @@ class MemberSearchResponse(BaseModel):
     total: int
     limit: int
     offset: int
-
+class MemberWithToken(Member):
+    """Member + latest active NFC token for /me and detail views"""
+    model_config = ConfigDict(from_attributes=True)  # keep ORM mode on
+    token: Optional[str] = None
+    token_expires_at: Optional[datetime] = None
 
 # ---------------- Auth ----------------
 class Token(BaseModel):

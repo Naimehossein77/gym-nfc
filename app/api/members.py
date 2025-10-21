@@ -6,10 +6,10 @@ from app.core.dependencies import require_staff, require_admin, require_self_or_
 from app.services.email_service import send_credentials_email
 from app.models import (
     Member, MemberCreate, MemberUpdate, MemberSearchRequest,
-    MemberSearchResponse, APIResponse
+    MemberSearchResponse, APIResponse, MemberWithToken   # <-- added
 )
 from app.services.member_service import member_service
-from app.database import get_db, User
+from app.database import get_db, User, Token as DBToken   # <-- added DBToken alias
 from app.core.security import get_password_hash
 
 router = APIRouter(prefix="/api/members", tags=["members"])
@@ -78,13 +78,13 @@ async def search_members(
         )
 
 
-@router.get("/me", response_model=Member)
+@router.get("/me", response_model=MemberWithToken)   # <-- changed
 async def get_current_member(
     db: Session = Depends(get_db),
     current_user=Depends(require_member),
 ):
     """
-    Get the current logged-in member's details
+    Get the current logged-in member's details + latest active NFC token
     """
     member = member_service.get_member_by_id(db, current_user.member_id)
     if not member:
@@ -92,7 +92,20 @@ async def get_current_member(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Member not found",
         )
-    return member
+
+    # Fetch latest active NFC token for this member
+    token_row = (
+        db.query(DBToken)
+          .filter(DBToken.member_id == current_user.member_id, DBToken.is_active == True)  # noqa: E712
+          .order_by(DBToken.expires_at.desc().nullslast(), DBToken.created_at.desc())
+          .first()
+    )
+
+    # Build response: start from existing Member Pydantic model, then enrich
+    base = Member.model_validate(member).model_dump()
+    base["token"] = token_row.token if token_row else None
+    base["token_expires_at"] = token_row.expires_at if token_row else None
+    return base
 
 
 @router.get("/{member_id}", response_model=Member)
