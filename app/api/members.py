@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.dependencies import require_staff, require_admin, require_self_or_staff, require_member
+from app.services.email_service import send_credentials_email
 from app.models import (
     Member, MemberCreate, MemberUpdate, MemberSearchRequest,
     MemberSearchResponse, APIResponse
@@ -210,6 +211,12 @@ def set_member_credentials(
     member = member_service.get_member_by_id(db, member_id)
     if not member or member.status != "active":
         raise HTTPException(status_code=404, detail="Member not found or not active")
+    
+    if not member.email:
+        raise HTTPException(
+            status_code=400, 
+            detail="Member does not have an email address"
+        )
 
     # unique username check
     exist = db.query(User).filter(User.username == dto.username).first()
@@ -234,4 +241,15 @@ def set_member_credentials(
         u.is_active = True
 
     db.commit()
-    return {"success": True, "message": "Member credentials set"}
+    
+    # Send credentials via email
+    email_sent = send_credentials_email(member.email, dto.username, dto.password)
+    if not email_sent:
+        # Log the error but don't fail the request since credentials were set successfully
+        print(f"Failed to send credentials email to {member.email}")
+        return {
+            "success": True, 
+            "message": "Member credentials set but failed to send email notification"
+        }
+
+    return {"success": True, "message": "Member credentials set and email sent"}
