@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.core.dependencies import require_staff, require_admin, require_self_or_staff
+from app.core.dependencies import require_staff, require_admin, require_self_or_staff, require_member
 from app.models import (
     Member, MemberCreate, MemberUpdate, MemberSearchRequest,
     MemberSearchResponse, APIResponse
@@ -75,6 +75,23 @@ async def search_members(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error searching members: {str(e)}",
         )
+
+
+@router.get("/me", response_model=Member)
+async def get_current_member(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_member),
+):
+    """
+    Get the current logged-in member's details
+    """
+    member = member_service.get_member_by_id(db, current_user.member_id)
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Member not found",
+        )
+    return member
 
 
 @router.get("/{member_id}", response_model=Member)
