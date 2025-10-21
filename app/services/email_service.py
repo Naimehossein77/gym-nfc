@@ -49,7 +49,6 @@ def send_credentials_email(to_email: str, username: str, password: str) -> bool:
 
                 <p><strong>Important:</strong></p>
                 <ul>
-                  <li>Please change your password after first login</li>
                   <li>Keep your credentials secure</li>
                   <li>Do not share these credentials with others</li>
                 </ul>
