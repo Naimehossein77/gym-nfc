@@ -108,14 +108,47 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 if __name__ == "__main__":
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
-    print(f"🚀 Server running at http://{local_ip}:9000")
-    print(f"📚 API documentation available at http://{local_ip}:9000/docs")
+    # Find and display available network interfaces
+    def get_available_hosts():
+        hostname = socket.gethostname()
+        available_hosts = ['127.0.0.1', '0.0.0.0']
+        
+        try:
+            # Get local IP address
+            local_ip = socket.gethostbyname(hostname)
+            if local_ip not in available_hosts:
+                available_hosts.append(local_ip)
+        except:
+            pass
+        
+        try:
+            # Alternative method to get local IP
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                if local_ip not in available_hosts:
+                    available_hosts.append(local_ip)
+        except:
+            pass
+            
+        return available_hosts, hostname
+    
+    hosts, hostname = get_available_hosts()
+    print(f"🔍 Available hosts: {hosts}")
+    print(f"🏠 Hostname: {hostname}")
+    
+    port = 8000
+    
+    print(f"🚀 Server running at:")
+    for host in hosts:
+        if host != '0.0.0.0':
+            print(f"   http://{host}:{port}")
+    print(f"📚 API documentation available at http://{hosts[-1]}:{port}/docs")
+    
     uvicorn.run(
-        "main:app",  # ensure correct module path
+        "main:app",
         host="0.0.0.0",
-        port=9000,
+        port=port,
         reload=settings.debug,
         log_level="info",
     )
