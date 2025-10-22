@@ -16,6 +16,13 @@ class MemberWithTokenOut(BaseModel):
     username: str
     token: Optional[str] = None  # None হলে বুঝবেন এখনো token generate হয়নি / valid নেই
 
+class MemberWithTokenOut(BaseModel):
+    member_id: int
+    username: str
+    token: Optional[str] = None  # None হলে বুঝবেন এখনো token generate হয়নি / valid নেই
+    token_issued_at: Optional[datetime] = None
+    token_expires_at: Optional[datetime] = None
+
 @router.get(
     "/members-with-tokens",
     response_model=List[MemberWithTokenOut],
@@ -32,7 +39,7 @@ def list_members_with_latest_token(
     """
     Admin-only:
     প্রতিটা member-এর সর্বশেষ valid token তুলে আনে।
-    রিটার্ন: member_id, username, token
+    রিটার্ন: member_id, username, token, token_issued_at, token_expires_at
     """
     try:
         now = datetime.now(timezone.utc)
@@ -70,6 +77,8 @@ def list_members_with_latest_token(
                 uq.c.member_id.label("member_id"),
                 uq.c.username.label("username"),
                 Token.token.label("token"),
+                Token.created_at.label("token_issued_at"),
+                Token.expires_at.label("token_expires_at"),
             )
             .outerjoin(
                 latest_token_sq,
@@ -85,7 +94,16 @@ def list_members_with_latest_token(
         )
 
         rows = q.all()
-        return [MemberWithTokenOut(member_id=r.member_id, username=r.username, token=r.token) for r in rows]
+        return [
+            MemberWithTokenOut(
+                member_id=r.member_id,
+                username=r.username,
+                token=r.token,
+                token_issued_at=r.token_issued_at,
+                token_expires_at=r.token_expires_at
+            )
+            for r in rows
+        ]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing members with tokens: {e}")
