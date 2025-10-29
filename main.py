@@ -137,7 +137,7 @@ if __name__ == "__main__":
     print(f"🔍 Available hosts: {hosts}")
     print(f"🏠 Hostname: {hostname}")
     
-    port = 8000
+    port = 8001
     
     print(f"🚀 Server running at:")
     for host in hosts:
