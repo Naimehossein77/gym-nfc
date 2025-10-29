@@ -1,4 +1,4 @@
-# Requirements for Ubuntu Server (with pre-built wheels)
+# Requirements for Ubuntu Server (Python 3.11-3.13 compatible)
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
@@ -7,10 +7,13 @@ passlib[bcrypt]==1.7.4
 sqlalchemy==2.0.23
 python-dotenv==1.0.0
 
-# Use older Pydantic that doesn't require Rust
+# Use Pydantic 1.x (no Rust required, works with Python 3.13)
 pydantic==1.10.13
 
 # Other dependencies
 starlette==0.27.0
 httpx==0.25.0
 email-validator==2.1.0
+
+# For Python 3.13 compatibility
+typing-extensions>=4.8.0
