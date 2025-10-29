@@ -5,7 +5,7 @@
 echo "🏋️ Setting up Gym NFC Management System..."
 
 # Check if Python 3.8+ is installed
-python3 --version
+python3.12 --version
 if [ $? -ne 0 ]; then
     echo "❌ Python 3.8+ is required. Please install Python first."
     exit 1
@@ -13,7 +13,7 @@ fi
 
 # Create virtual environment
 echo "📦 Creating virtual environment..."
-python3 -m venv gym-nfc-env
+python3.12 -m venv gym-nfc-env
 
 # Activate virtual environment
 echo "🔧 Activating virtual environment..."
