@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'gym-nfc',
     script: 'main.py',
-    interpreter: '/root/gym-nfc-env//bin/python',
+    interpreter: '/root/gym-nfc-env/bin/python',
     cwd: '/root/gym-nfc',
 
     // Environment variables
