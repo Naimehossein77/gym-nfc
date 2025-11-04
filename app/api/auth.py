@@ -16,6 +16,14 @@ def _issue_token(user: User):
     )
     return {"access_token": token, "token_type": "bearer", "role": user.role}
 
+@router.post("/login")
+async def login(form: OAuth2PasswordRequestForm = Depends()):
+    """General login endpoint for all user types"""
+    user = authenticate_user(form.username, form.password)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    return _issue_token(user)
+
 @router.post("/admin/login")
 async def admin_login(form: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form.username, form.password)

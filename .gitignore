@@ -144,3 +144,13 @@ dmypy.json
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Apple certificates and private keys (NEVER COMMIT THESE!)
+certs/*.pem
+certs/*.p12
+certs/*.cer
+certs/*.key
+certs/*.crt
+
+# Generated pass files
+*.pkpass

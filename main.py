@@ -16,7 +16,7 @@ except ImportError:
     print("python-dotenv not installed, using environment variables directly")
 
 from app.core.config import settings
-from app.api import auth, members, tokens, nfc
+from app.api import auth, members, tokens, nfc, wallet
 from app.api import members_admin_list_tokens
 
 
@@ -79,6 +79,7 @@ app.include_router(auth.router)
 app.include_router(members.router)
 app.include_router(tokens.router)
 app.include_router(nfc.router)
+app.include_router(wallet.router)
 app.include_router(members_admin_list_tokens.router)
 
 @app.get("/")

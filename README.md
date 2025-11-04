@@ -7,6 +7,7 @@ A secure command-line tool and backend API for gym software that allows front de
 - **Member Search API**: Search for gym members by name, email, phone, or ID
 - **Token Generation**: Generate secure, unique tokens for NFC cards
 - **NFC Card Writing**: Write tokens to physical NFC cards using ACS ACR122U reader
+- **Apple Wallet Integration**: Generate .pkpass files for iOS Wallet app NFC access
 - **JWT Authentication**: Secure all endpoints with JWT-based authentication
 - **Cross-Platform Support**: Works on Windows, macOS, and Linux
 - **Synchronous NFC Operations**: Handles blocking NFC communication properly
@@ -156,6 +157,10 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 - `POST /api/nfc/write` - Write token to NFC card (blocking operation)
 - `GET /api/nfc/read` - Read data from NFC card
 - `GET /api/nfc/status` - Check NFC reader status
+
+### Apple Wallet
+- `POST /api/pass/sign` - Generate signed .pkpass file for iOS Wallet
+- `GET /api/pass/certificates/status` - Check certificate status
 
 ## 🎯 Usage Workflow
 
@@ -368,8 +373,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 For support and questions:
 1. Check the troubleshooting section above
 2. Review the API documentation at `/docs`
-3. Check the logs for error details
-4. Ensure NFC reader is properly connected and configured
+3. For Apple Wallet integration, see `WALLET_API.md`
+4. Check the logs for error details
+5. Ensure NFC reader is properly connected and configured
 
 ## 🔄 Version History
 

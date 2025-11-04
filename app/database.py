@@ -172,8 +172,43 @@ def ensure_admin_user():
 
         db.commit()
         print(f"✅ Created default admin ('{admin_username}') and staff ('{staff_username}') users")
+        
+        # Also create a sample member user
+        _create_sample_member_user(db)
+        
     except Exception as e:
         print(f"❌ Error ensuring admin user: {e}")
         db.rollback()
     finally:
         db.close()
+
+
+def _create_sample_member_user(db):
+    """Create a sample member user for testing"""
+    try:
+        # Check if member user already exists
+        existing_member_user = db.query(User).filter(User.role == "member").first()
+        if existing_member_user:
+            return
+            
+        # Get the first member
+        first_member = db.query(Member).first()
+        if not first_member:
+            return
+            
+        # Create member user
+        member_user = User(
+            username="member",
+            email="member@gym.com",
+            password_hash=pwd_context.hash("member123"),
+            role="member",
+            member_id=first_member.id,
+            is_active=True,
+        )
+        db.add(member_user)
+        db.commit()
+        print(f"✅ Created sample member user 'member' linked to member '{first_member.name}'")
+        
+    except Exception as e:
+        print(f"❌ Error creating member user: {e}")
+        db.rollback()
