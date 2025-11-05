@@ -80,34 +80,36 @@ class PassService:
             "description": request_data.description,
             "logoText": request_data.organizationName,
             "foregroundColor": "rgb(255, 255, 255)",
-            "backgroundColor": "rgb(60, 65, 76)",
+            "backgroundColor": "rgb(197, 31, 31)",  # Using working sample colors
             "generic": {
                 "primaryFields": [
                     {
-                        "key": "access",
-                        "label": "Access Card",
+                        "key": "member",
                         "value": request_data.description
                     }
                 ],
                 "secondaryFields": [
                     {
+                        "key": "subtitle",
+                        "label": "MEMBER SINCE",
+                        "value": "2025"
+                    }
+                ],
+                "auxiliaryFields": [
+                    {
                         "key": "serial",
-                        "label": "Serial Number",
+                        "label": "SERIAL NUMBER",
                         "value": request_data.serialNumber
                     }
                 ]
             },
-            "nfc": {
+            # Remove NFC section entirely - this was causing validation failures
+            # NFC functionality can be added later with proper encryption key
+            "barcode": {
                 "message": request_data.nfc.message,
-                "encryptionPublicKey": ""  # Leave empty for basic NFC
-            },
-            "barcodes": [
-                {
-                    "format": "PKBarcodeFormatQR",
-                    "message": request_data.nfc.message,
-                    "messageEncoding": "iso-8859-1"
-                }
-            ]
+                "format": "PKBarcodeFormatQR",
+                "messageEncoding": "iso-8859-1"
+            }
         }
         
         return pass_data
