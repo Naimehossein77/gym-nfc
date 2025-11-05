@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 class PassKitDebugHelper {
   static const String baseUrl = "http://192.168.1.21:8001"; // Your server IP
-  
+
   /// Debug method to test Apple Wallet pass generation and installation
   static Future<void> debugPassKitFlow({
     required String token,
@@ -17,25 +17,25 @@ class PassKitDebugHelper {
   }) async {
     print('🔍 Starting PassKit Debug Flow');
     print('=' * 50);
-    
+
     try {
       // Step 1: Prepare pass data with real certificate values
       final passData = {
         "serialNumber": serialNumber,
         "description": "NFC Access Card",
         "organizationName": "New Life Fitness",
-        "passTypeIdentifier": "pass.com.newlife.fitness",  // Real from cert
-        "teamIdentifier": "C4JDUP99R7",  // Real from cert
+        "passTypeIdentifier": "pass.com.newlife.fitness", // Real from cert
+        "teamIdentifier": "C4JDUP99R7", // Real from cert
         "nfc": {
-          "message": "dGVzdG1lc3NhZ2U="  // base64 "testmessage"
-        }
+          "message": "dGVzdG1lc3NhZ2U=", // base64 "testmessage"
+        },
       };
-      
+
       print('📝 Pass Data:');
       print('   Serial: ${passData["serialNumber"]}');
       print('   Team ID: ${passData["teamIdentifier"]}');
       print('   Pass Type: ${passData["passTypeIdentifier"]}');
-      
+
       // Step 2: Make API request
       print('\n🌐 Making API Request...');
       final response = await http.post(
@@ -46,23 +46,25 @@ class PassKitDebugHelper {
         },
         body: jsonEncode(passData),
       );
-      
+
       print('   Status Code: ${response.statusCode}');
       print('   Content-Type: ${response.headers['content-type']}');
       print('   Content-Length: ${response.headers['content-length']}');
       print('   Body Length: ${response.bodyBytes.length} bytes');
-      
+
       if (response.statusCode != 200) {
         print('❌ API Error: ${response.body}');
         return;
       }
-      
+
       // Step 3: Validate response data
       final bytes = response.bodyBytes;
       print('\n🔍 Validating Response Data:');
       print('   Bytes length: ${bytes.length}');
-      print('   First 4 bytes: ${bytes.take(4).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-      
+      print(
+        '   First 4 bytes: ${bytes.take(4).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+      );
+
       // Check ZIP signature
       if (bytes.length >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B) {
         print('   ✅ Valid ZIP signature detected');
@@ -70,7 +72,7 @@ class PassKitDebugHelper {
         print('   ❌ Invalid ZIP signature - not a valid .pkpass file');
         return;
       }
-      
+
       // Step 4: Save to file for manual testing (optional)
       if (saveToFile) {
         final directory = await getApplicationDocumentsDirectory();
@@ -79,20 +81,19 @@ class PassKitDebugHelper {
         print('\n💾 Saved to: ${file.path}');
         print('   You can manually transfer this file to test');
       }
-      
+
       // Step 5: Validate with PassKit
       print('\n🎫 Attempting PassKit Installation...');
       print('   Calling ApplePassKit.addPass() with ${bytes.length} bytes');
-      
+
       try {
         // This is the critical call that's failing
         final result = await ApplePassKit.addPass(bytes);
         print('   ✅ Success! Result: $result');
-        
       } catch (passKitError) {
         print('   ❌ PassKit Error: $passKitError');
         print('   Error Type: ${passKitError.runtimeType}');
-        
+
         // Additional debugging for common error types
         if (passKitError.toString().contains('invalid')) {
           print('\n🔬 PassKit Validation Failed - Possible Causes:');
@@ -100,62 +101,60 @@ class PassKitDebugHelper {
           print('   2. Pass Type ID not configured correctly');
           print('   3. Certificate issues');
           print('   4. Pass.json format problems');
-          
+
           // Try to extract more details
           await _analyzePassContent(bytes);
         }
       }
-      
     } catch (e) {
       print('❌ Unexpected Error: $e');
       print('   Type: ${e.runtimeType}');
     }
   }
-  
+
   /// Analyze the internal structure of the .pkpass data
   static Future<void> _analyzePassContent(Uint8List bytes) async {
     try {
       print('\n🔬 Analyzing Pass Structure:');
-      
+
       // Save to temporary file for analysis
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/temp_analysis.pkpass');
       await tempFile.writeAsBytes(bytes);
-      
+
       // In a real app, you'd need to use a ZIP library to extract and analyze
       // For now, we'll just validate the basics
       print('   File saved for analysis: ${tempFile.path}');
       print('   File size: ${await tempFile.length()} bytes');
-      
+
       // Clean up
       await tempFile.delete();
-      
     } catch (e) {
       print('   Analysis failed: $e');
     }
   }
-  
+
   /// Test with a minimal pass request
   static Future<void> testMinimalPass(String token) async {
     print('\n🧪 Testing Minimal Pass Configuration');
-    
+
     await debugPassKitFlow(
       token: token,
       serialNumber: 'MIN${DateTime.now().millisecondsSinceEpoch}',
       saveToFile: true,
     );
   }
-  
+
   /// Validate that the token and API are working
   static Future<bool> validateApiAccess(String token) async {
     print('🔐 Validating API Access...');
-    
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/pass/certificates/status'),
         headers: {'Authorization': 'Bearer $token'},
       );
-      
+
       if (response.statusCode == 200) {
         final status = jsonDecode(response.body);
         final ready = status['ready'] ?? false;
@@ -175,9 +174,9 @@ class PassKitDebugHelper {
 // Example usage in your Flutter app:
 class PassKitTestWidget extends StatelessWidget {
   final String jwtToken;
-  
+
   const PassKitTestWidget({Key? key, required this.jwtToken}) : super(key: key);
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -189,22 +188,28 @@ class PassKitTestWidget extends StatelessWidget {
             ElevatedButton(
               onPressed: () async {
                 // First validate API access
-                final apiReady = await PassKitDebugHelper.validateApiAccess(jwtToken);
+                final apiReady = await PassKitDebugHelper.validateApiAccess(
+                  jwtToken,
+                );
                 if (!apiReady) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('API not ready - check server and certificates')),
+                    SnackBar(
+                      content: Text(
+                        'API not ready - check server and certificates',
+                      ),
+                    ),
                   );
                   return;
                 }
-                
+
                 // Then test pass creation
                 await PassKitDebugHelper.testMinimalPass(jwtToken);
               },
               child: Text('Test PassKit Integration'),
             ),
-            
+
             SizedBox(height: 20),
-            
+
             Text(
               'This will:\n'
               '1. Validate API access\n'
